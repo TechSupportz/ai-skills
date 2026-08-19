@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Claude"
+  short_description: "Delegate bounded tasks to local Claude CLI"
+  default_prompt: "Use $use-claude to get an independent Claude Code opinion on this task."
