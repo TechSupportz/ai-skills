@@ -1,13 +1,13 @@
 ---
 name: use-claude
-description: Delegate a bounded task to the local `claude` CLI — an independent second opinion, a code or UI review, or a scoped implementation pass. Use when the user says to use Claude or Claude Code, names a model such as Opus or Sonnet, or asks for an outside review.
+description: Delegate a bounded task to the local `claude` CLI — a second opinion, a code or UI review, or a scoped implementation pass. Use when the user says to use Claude Code, names a Claude model such as Opus or Sonnet, or asks for a second pair of eyes on the work.
 ---
 
 # Use Claude
 
 Delegate to the local `claude` CLI in one of two roles: **advisor** (read-only
-critique, the default) or **worker** (an authorized, scoped implementation
-pass). Report what comes back as an outside opinion.
+exploration and critique, the default) or **worker** (an authorized, scoped
+implementation pass). Report what comes back as an outside opinion.
 
 ## Workflow
 
@@ -25,8 +25,12 @@ pass). Report what comes back as an outside opinion.
    or effort through as the user said it. `--dry-run` prints the command without
    running it — it is sandbox-safe, and the fastest way to check the shape of a
    call before escalating.
-5. Give worker mode the narrowest `--tools` and `--permission-mode` its
-   authorized scope needs, once the user has authorized writes.
+5. Advisor reads the repo — `Read,Glob,Grep` and nothing that writes — so the
+   prompt can name paths and let Claude go find them rather than pasting the
+   code in. Worker takes Claude's full toolset in `auto` permission mode; narrow
+   it with `--tools` or another permission mode once the user has authorized
+   writes. `--add-dir` reaches paths outside the working root. The wrapper does
+   not expose Claude's permission-bypass mode.
 6. Allow minutes, not seconds. `--print` blocks until Claude finishes, so run it
    with a long timeout or in the background — an Opus run at medium effort
    routinely passes two minutes.
@@ -39,8 +43,8 @@ pass). Report what comes back as an outside opinion.
 ## Command patterns
 
 ```text
-Advisor: scripts/ask_claude.py --prompt "Review this UI for hierarchy and interaction risks. Return five findings with fixes."
-Worker:  scripts/ask_claude.py --role worker --permission-mode acceptEdits --tools Read Edit --prompt "Implement the scoped change in src/... and summarize the files changed."
+Advisor: scripts/ask_claude.py --prompt "Read src/auth/ and review the token refresh path for hierarchy and interaction risks. Return five findings with fixes."
+Worker:  scripts/ask_claude.py --role worker --tools Read,Edit --prompt "Implement the scoped change in src/... and summarize the files changed."
 ```
 
 `claude --help` and `scripts/ask_claude.py --help` are the source of truth for

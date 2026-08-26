@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Codex"
+  short_description: "Delegate bounded tasks to local Codex CLI"
+  default_prompt: "Use $use-codex to get an independent Codex opinion on this task."
