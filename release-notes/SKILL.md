@@ -33,6 +33,7 @@ Use the requested house style. If none is provided, write clear, concise, user-f
 - On iOS, use basic-Latin text only: ASCII letters, digits, standard punctuation, spaces, and line breaks. Do not use emoji or any other non-ASCII character.
 - Start each section with a short, human title.
 - Follow it with one or two plain-language sentences. Be specific about the outcome, not the implementation.
+- Keep the wording casual and non-technical, as if explaining the update to an everyday app user.
 - Prefer 2–4 sections. Include a bug-fix section only when the range supports it.
 - Avoid Markdown headings, commit IDs, developer vocabulary, hype, and a changelog-style list of every internal change.
 - Reuse the same user-facing substance for Android and iOS. Diverge only for genuinely platform-specific behaviour or wording.

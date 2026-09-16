@@ -17,3 +17,4 @@ A simple skill that drafts concise, emoji-prefixed commit messages
 | ⚡ | Enhancement |
 | 🐞 | Bug fix |
 | 🛠️ | Chore/Misc |
+
