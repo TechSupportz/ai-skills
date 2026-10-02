@@ -8,19 +8,26 @@ import subprocess
 import sys
 from pathlib import Path
 
-ADVISOR_TOOLS = "Read,Glob,Grep"
-ADVISOR_TOOL_SET = frozenset(ADVISOR_TOOLS.split(","))
+EDIT_TOOLS = ("Edit", "Write", "NotebookEdit")
+ADVISOR_GUIDANCE = (
+    "You are a read-only advisor. Inspect freely: read files, run read-only commands, search the web, "
+    "and use MCP or browser tools to gather evidence. Leave files, git state, and external systems "
+    "unchanged; report what should change instead of changing it."
+)
 
 
 def build_command(args: argparse.Namespace) -> list[str]:
-    """`--tools` is variadic, so it is passed as one comma-joined argument and
-    always followed by another flag before the positional prompt."""
+    """`--tools` and `--disallowedTools` are variadic, so each is passed as one
+    comma-joined argument and always followed by another flag before the positional prompt."""
     command = ["claude", "--print", "--no-session-persistence", "--model", args.model, "--effort", args.effort]
-    tools = args.tools if args.tools is not None else (ADVISOR_TOOLS if args.role == "advisor" else None)
-    if tools is not None:
-        command += ["--tools", tools]
-    if args.role == "worker":
+    if args.tools is not None:
+        command += ["--tools", args.tools]
+    if args.role == "advisor":
+        command += ["--disallowedTools", ",".join(EDIT_TOOLS), "--permission-mode", "auto",
+                    "--append-system-prompt", ADVISOR_GUIDANCE]
+    else:
         command += ["--permission-mode", args.permission_mode or "auto"]
+    command.append("--chrome" if args.chrome else "--no-chrome")
     for directory in args.add_dir:
         command += ["--add-dir", str(directory)]
     command += ["--output-format", args.output_format, args.prompt]
@@ -34,21 +41,26 @@ def main() -> int:
     parser.add_argument("--effort", choices=("low", "medium", "high", "xhigh", "max"), default="medium")
     parser.add_argument("--role", choices=("advisor", "worker"), default="advisor")
     parser.add_argument("--permission-mode", choices=("acceptEdits", "auto", "manual", "dontAsk", "plan"))
-    parser.add_argument("--tools", help=f"Comma-separated Claude tool names. Advisor defaults to '{ADVISOR_TOOLS}'; "
-                                          "worker defaults to Claude's full set.")
+    parser.add_argument("--tools", help="Comma-separated Claude tool names; defaults to Claude's full set. "
+                                        "Advisor never receives the file-edit tools.")
+    parser.add_argument("--chrome", action=argparse.BooleanOptionalAction, default=True,
+                        help="Claude in Chrome integration (default on; needs the extension connected).")
     parser.add_argument("--add-dir", type=Path, nargs="*", default=[], help="Extra directories Claude may access.")
     parser.add_argument("--output-format", choices=("text", "json", "stream-json"), default="text")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument("--timeout", type=int, default=900,
+                        help="Wall-clock limit in seconds before the Claude run is killed (default 900).")
     parser.add_argument("--dry-run", action="store_true", help="Print the command as JSON without executing it.")
     args = parser.parse_args()
 
+    if args.timeout <= 0:
+        parser.error("--timeout must be a positive number of seconds")
     if args.role == "advisor" and args.permission_mode is not None:
         parser.error("--permission-mode is worker-only")
     if args.role == "advisor" and args.tools is not None:
         requested_tools = {tool.strip() for tool in args.tools.split(",") if tool.strip()}
-        write_capable_tools = requested_tools - ADVISOR_TOOL_SET
-        if write_capable_tools:
-            parser.error("advisor --tools may only contain Read, Glob, and Grep")
+        if requested_tools & set(EDIT_TOOLS):
+            parser.error(f"advisor --tools cannot include {', '.join(EDIT_TOOLS)}")
 
     if not shutil.which("claude"):
         print("claude executable not found on PATH", file=sys.stderr)
@@ -62,7 +74,14 @@ def main() -> int:
         print(json.dumps(command))
         return 0
 
-    completed = subprocess.run(command, cwd=args.cwd, text=True, capture_output=True)
+    # Close stdin so a backgrounded call never waits on input that will not come.
+    try:
+        completed = subprocess.run(command, cwd=args.cwd, text=True, capture_output=True,
+                                   stdin=subprocess.DEVNULL, timeout=args.timeout)
+    except subprocess.TimeoutExpired:
+        print(f"claude timed out after {args.timeout}s (model={args.model}, effort={args.effort}); "
+              "raise --timeout or narrow the prompt", file=sys.stderr)
+        return 124
     if completed.stdout:
         print(completed.stdout, end="")
     if completed.returncode:

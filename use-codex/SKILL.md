@@ -31,24 +31,29 @@ a verdict.
    `--uncommitted`, and returns structured findings. Targeted review flags do
    not accept a custom prompt; use plain advisor mode when custom instructions
    are more important than native review mode.
-6. Advisor still reads the repo — the sandbox is `read-only`, so Codex explores
-   files and runs read-only commands but writes nothing. Worker raises that to
-   `workspace-write` once the user has authorized writes; both roles run
-   automatically inside their sandbox, and the wrapper never exposes
-   `danger-full-access`. Add `--add-dir` only for paths outside the working root
-   that the scope actually needs.
-7. Add `--computer-use` when the task needs evidence from, or authorized
-   interaction with, a Mac app. It explicitly enables Codex's stable
-   `computer_use` feature and relies on the bundled Computer Use plugin/runtime
-   already being installed; the wrapper does not install or configure it.
-   Advisor may inspect and navigate UI but does not type, submit, change
-   settings, or mutate external state. Worker may interact within the authorized
-   task and follows the installed Computer Use confirmation policy. Prefer a
-   dedicated connector or CLI when it can complete the task. Native review mode
-   does not support Computer Use; use plain advisor mode for UI review.
+6. Both roles carry the full toolset — shell, web search, MCP servers and
+   plugins from `~/.codex/config.toml`, and Computer Use (on by default outside
+   review mode; `--no-computer-use` drops it). Attach screenshots or mockups
+   with `--image`. The role sets the sandbox: advisor is `read-only` and is
+   told to change nothing; worker is `workspace-write` once the user has
+   authorized writes. `--add-dir` reaches paths outside the working root.
+7. **Auto-review** is the ceiling. Anything beyond the sandbox — network from
+   the shell, an app's UI state — becomes an escalation that Codex's guardian
+   reviewer approves or rejects against the prompt's stated scope. The wrapper
+   never exposes `danger-full-access` or the bypass flag. So name every
+   surface the delegate may touch in the prompt: "inspect the Simulator window
+   for the login screen" gets approved where "check the frontmost app" gets
+   rejected as reaching past the task.
 8. Allow minutes, not seconds. `exec` blocks until Codex finishes, so run it
    with a long timeout or in the background — a medium-effort run routinely
-   passes two minutes.
+   passes two minutes. The wrapper kills the run after `--timeout` seconds
+   (default 900) and exits 124 naming the model and effort; raise it for long
+   worker passes.
+   The wrapper closes stdin because `codex exec` waits on an open stdin
+   ("Reading additional input from stdin...") and hangs silently at ~0 CPU —
+   a backgrounded shell never closes it. When calling `codex exec` directly,
+   redirect `< /dev/null`. The non-interactive form is `codex exec "prompt"`;
+   `codex -p` is `--profile`, a config profile name.
 9. Report the result with the model and effort observed, plus the delegation's
    limits. Done when the bounded response is captured, or when the failure is
    reported with its cause and the primary task continues. An auth or
@@ -59,10 +64,10 @@ a verdict.
 
 ```text
 Advisor: scripts/ask_codex.py --prompt "Read src/auth/ and name the five riskiest assumptions in the token refresh path, each with a concrete failure."
-UI advisor: scripts/ask_codex.py --computer-use --prompt "Inspect the running app and identify five interaction or hierarchy problems with screenshots as evidence."
+UI advisor: scripts/ask_codex.py --image mock.png --prompt "Compare the running app's settings screen with mock.png and identify five interaction or hierarchy problems with screenshots as evidence."
 Review:  scripts/ask_codex.py --review --base main
 Worker:  scripts/ask_codex.py --role worker --prompt "Implement the scoped change in src/... and summarize the files changed."
-UI worker: scripts/ask_codex.py --role worker --computer-use --prompt "Exercise the changed flow in the running app, fix issues within src/..., and summarize the evidence and files changed."
+UI worker: scripts/ask_codex.py --role worker --prompt "Exercise the changed flow in the running app, fix issues within src/..., and summarize the evidence and files changed."
 ```
 
 `codex exec --help`, `codex exec review --help`, and
